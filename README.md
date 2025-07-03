@@ -3,16 +3,16 @@
 This tool recursively scans Fortran .F90 source files in a directory, replacing specified OpenACC pragmas with custom macros or OpenMP pragmas as defined in a YAML mapping file. It is especially useful for porting or adapting code to new GPU programming models or for code modernization.
 
 **Features**
-    
-    Recursive processing: All .F90 files in the specified directory and subdirectories are processed.
-    
-    Flexible mapping: Easily configure pragma replacements via a YAML file.
-    
-    Safe editing: Only files with actual replacements are modified.
-    
-    Macro header insertion: Optionally inserts a macro header at the top of modified files.
-    
-    Encoding robust: Handles various file encodings automatically.
+
+Recursive processing: All .F90 files in the specified directory and subdirectories are processed.
+
+Flexible mapping: Easily configure pragma replacements via a YAML file.
+
+Safe editing: Only files with actual replacements are modified.
+
+Macro header insertion: Optionally inserts a macro header at the top of modified files.
+
+Encoding robust: Handles various file encodings automatically.
 
 **Requirements**
 
@@ -48,25 +48,25 @@ This tool recursively scans Fortran .F90 source files in a directory, replacing 
 The YAML file defines how each OpenACC pragma should be replaced.
 Example (acc_to_omp.yaml):
 
-acc_to_omp:
-
-  enter data create: GPU_ENTER_DATA_CREATE
-  
-  parallel loop: GPU_PARALLEL_LOOP
-  
-  kernels: GPU_KERNELS
-  
-  data: GPU_DATA
-  
-  enter data copyin: GPU_ENTER_DATA_COPYIN
-  
-  exit data copyout: GPU_EXIT_DATA_COPYOUT
-  
-  update host: GPU_UPDATE_HOST
-  
-  update device: GPU_UPDATE_DEVICE
-  
-  wait: GPU_WAIT
+    acc_to_omp:
+    
+      enter data create: GPU_ENTER_DATA_CREATE
+      
+      parallel loop: GPU_PARALLEL_LOOP
+      
+      kernels: GPU_KERNELS
+      
+      data: GPU_DATA
+      
+      enter data copyin: GPU_ENTER_DATA_COPYIN
+      
+      exit data copyout: GPU_EXIT_DATA_COPYOUT
+      
+      update host: GPU_UPDATE_HOST
+      
+      update device: GPU_UPDATE_DEVICE
+      
+      wait: GPU_WAIT
 
 
 **Macro Header**
