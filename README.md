@@ -1,6 +1,6 @@
 **OpenACC Pragma Replacer**
 
-This tool recursively scans Fortran .F90 source files in a directory, replacing specified OpenACC pragmas with custom macros or OpenMP pragmas as defined in a YAML mapping file. It is especially useful for porting or adapting code to new GPU programming models or for code modernization.
+This tool recursively scans Fortran  *.F90, *.f90, *.f, *.F, *.fypp, *.h, *.c, *.cc source files in a directory, replacing specified OpenACC pragmas with custom macros or OpenMP pragmas as defined in a YAML mapping file. It is especially useful for porting or adapting code to new GPU programming models or for code modernization.
 
 **Features**
 
@@ -31,7 +31,7 @@ Encoding robust: Handles various file encodings automatically.
 
     python replace_pragms.py [base_directory] [yaml_mapping_file]
     
-    base_directory (optional): Directory to search for .F90 files. Default: ./src
+    base_directory (optional): Directory to search for  *.F90, *.f90, *.f, *.F, *.fypp, *.h, *.c, *.cc files. Default: ./src
     
     yaml_mapping_file (optional): Path to YAML mapping file. Default: ./acc_to_omp.yaml
     
@@ -76,7 +76,7 @@ If a file is modified, a macro header (e.g., #include "macros.h") is inserted at
 
 **How it Works**
 
-The script scans each .F90 file, line by line.
+The script scans each  *.F90, *.f90, *.f, *.F, *.fypp, *.h, *.c, *.cc file, line by line.
 
 When it finds an OpenACC pragma matching a key in the YAML, it replaces just that pragma with the mapped value, preserving arguments and formatting.
 If any pragma is replaced, the macro header is inserted at the top of the file (if not already present).
