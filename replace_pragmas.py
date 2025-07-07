@@ -66,7 +66,7 @@ def process_file(filepath, mapping):
 def process_directory(base_directory, mapping):
     for root, dirs, files in os.walk(base_directory):
         for filename in files:
-            if filename.lower().endswith(".f90"):
+            if  any(filename.lower().endswith(x) for x in (".f90", ".f", ".fypp", ".h", ".c", ".cc")):
                 process_file(os.path.join(root, filename), mapping)
 
 def main():

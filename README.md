@@ -4,7 +4,7 @@ This tool recursively scans Fortran .F90 source files in a directory, replacing 
 
 **Features**
 
-Recursive processing: All .F90 files in the specified directory and subdirectories are processed.
+Recursive processing: All *.F90, *.f90, *.f, *.F, *.fypp, *.h, *.c, *.cc files in the specified directory and subdirectories are processed.
 
 Flexible mapping: Easily configure pragma replacements via a YAML file.
 
