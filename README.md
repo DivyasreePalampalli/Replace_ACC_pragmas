@@ -1,6 +1,6 @@
 **OpenACC Pragma Replacer**
 
-This tool recursively scans Fortran  *.F90, *.f90, *.f, *.F, *.fypp, *.h, *.c, *.cc source files in a directory, replacing specified OpenACC pragmas with custom macros or OpenMP pragmas as defined in a YAML mapping file. It is especially useful for porting or adapting code to new GPU programming models or for code modernization.
+This tool recursively scans *.F90, *.f90, *.f, *.F, *.fypp, *.h, *.c, *.cc source files in a directory, replacing specified OpenACC pragmas with custom macros or OpenMP pragmas as defined in a YAML mapping file. It is especially useful for porting or adapting code to new GPU programming models or for code modernization.
 
 **Features**
 
