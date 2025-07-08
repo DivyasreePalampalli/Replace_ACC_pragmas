@@ -57,7 +57,7 @@ def extract_temp_declarations(lines):
 
 def extract_dims(dim_str):
     """
-    Process dimension string: strips spaces, removes `0:` ranges to just upper bound, and adds (0, 0) padding if needed.
+    Process dimension string: strips spaces, removes `0:` ranges to just upper bound, and adds (0, 0, 0) padding if needed.
     """
     raw_dims = [d.strip() for d in dim_str.split(',')]
     clean_dims = []
@@ -72,7 +72,7 @@ def extract_dims(dim_str):
             clean_dims.append(d)
 
     if add_padding:
-        clean_dims += ['0', '0']
+        clean_dims += ['0', '0', '0']
 
     return clean_dims
 
