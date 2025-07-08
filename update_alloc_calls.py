@@ -10,14 +10,16 @@ def find_files(root_dir):
             if filename.lower().endswith(".f90"):
                 yield os.path.join(dirpath, filename)
 
+
 def extract_temp_declarations(lines):
     """
-    Extracts variable names and full argument strings from temp(...) calls.
-    Returns a dictionary: {variable_name: full_argument_string}
+    Extracts variable names and alloc-style argument strings from temp(...) calls.
+    Returns a dictionary: {variable_name: alloc_arg_string}
     """
     pattern = re.compile(
-        r'temp\s*\(\s*(REAL|INTEGER)\s*\(KIND\s*=\s*(\w+)\)\s*,\s*(\w+)\s*,\s*\((.*?)\)\s*\)'
-        r'|temp\s*\(\s*(LOGICAL)\s*,\s*(\w+)\s*,\s*\((.*?)\)\s*\)',
+        r'temp\s*\(\s*(REAL|INTEGER)\s*\(\s*KIND\s*=\s*(\w+)\s*\)\s*,\s*(\w+)\s*,\s*\((.*?)\)\s*\)'  # REAL/INTEGER with KIND
+        r'|temp\s*\(\s*(REAL|INTEGER)\s*,\s*(\w+)\s*,\s*\((.*?)\)\s*\)'                              # REAL/INTEGER without KIND
+        r'|temp\s*\(\s*(LOGICAL)\s*,\s*(\w+)\s*,\s*\((.*?)\)\s*\)',                                  # LOGICAL
         re.IGNORECASE
     )
 
@@ -26,21 +28,54 @@ def extract_temp_declarations(lines):
     for line in lines:
         match = pattern.search(line)
         if match:
-            if match.group(1):  # REAL or INTEGER match
-                type_base = match.group(1).upper()           # REAL or INTEGER
-                kind = match.group(2).upper()                # JPRB or JPIM
+            if match.group(1):  # REAL/INTEGER with KIND
+                type_base = match.group(1).upper()
+                kind = match.group(2).upper()
                 var_name = match.group(3)
                 dims = match.group(4)
-                full_args = f"({type_base} (KIND={kind}), {var_name}, ({dims}))"
-            else:  # LOGICAL match
+                dim_list = extract_dims(dims)
+                alloc_args = f"({type_base} (KIND={kind}), {var_name}, {', '.join(dim_list)})"
+                temp_map[var_name] = alloc_args
+
+            elif match.group(5):  # REAL/INTEGER without KIND
+                type_base = match.group(5).upper()
                 var_name = match.group(6)
                 dims = match.group(7)
-                full_args = f"(LOGICAL, {var_name}, ({dims}))"
+                dim_list = extract_dims(dims)
+                alloc_args = f"({type_base}, {var_name}, {', '.join(dim_list)})"
+                temp_map[var_name] = alloc_args
 
-            temp_map[var_name] = full_args
+            elif match.group(8):  # LOGICAL
+                var_name = match.group(9)
+                dims = match.group(10)
+                dim_list = extract_dims(dims)
+                alloc_args = f"(LOGICAL, {var_name}, {', '.join(dim_list)})"
+                temp_map[var_name] = alloc_args
 
     return temp_map
-    
+
+
+def extract_dims(dim_str):
+    """
+    Process dimension string: strips spaces, removes `0:` ranges to just upper bound, and adds (0, 0) padding if needed.
+    """
+    raw_dims = [d.strip() for d in dim_str.split(',')]
+    clean_dims = []
+    add_padding = False
+
+    for d in raw_dims:
+        if ':' in d:
+            parts = d.split(':')
+            clean_dims.append(parts[-1].strip())  # Keep upper bound only
+            add_padding = True
+        else:
+            clean_dims.append(d)
+
+    if add_padding:
+        clean_dims += ['0', '0']
+
+    return clean_dims
+
 def update_alloc_lines(lines, temp_map):
     """
     Replace alloc8/alloc4 lines if matching variable is in temp_map.
