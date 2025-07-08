@@ -12,19 +12,35 @@ def find_files(root_dir):
 
 def extract_temp_declarations(lines):
     """
-    Extracts variable names and argument strings from temp(...) calls.
-    Returns a dictionary: {variable_name: arg_string}
+    Extracts variable names and full argument strings from temp(...) calls.
+    Returns a dictionary: {variable_name: full_argument_string}
     """
-    pattern = re.compile(r'temp\s*\(\s*REAL\s*\(KIND\s*=\s*JPRB\)\s*,\s*(\w+)\s*,\s*\((.*?)\)\s*\)', re.IGNORECASE)
+    pattern = re.compile(
+        r'temp\s*\(\s*(REAL|INTEGER)\s*\(KIND\s*=\s*(\w+)\)\s*,\s*(\w+)\s*,\s*\((.*?)\)\s*\)'
+        r'|temp\s*\(\s*(LOGICAL)\s*,\s*(\w+)\s*,\s*\((.*?)\)\s*\)',
+        re.IGNORECASE
+    )
+
     temp_map = {}
+
     for line in lines:
         match = pattern.search(line)
         if match:
-            var_name = match.group(1)
-            arg_str = match.group(2)
-            temp_map[var_name] = f"(REAL (KIND=JPRB), {var_name}, ({arg_str}))"
-    return temp_map
+            if match.group(1):  # REAL or INTEGER match
+                type_base = match.group(1).upper()           # REAL or INTEGER
+                kind = match.group(2).upper()                # JPRB or JPIM
+                var_name = match.group(3)
+                dims = match.group(4)
+                full_args = f"({type_base} (KIND={kind}), {var_name}, ({dims}))"
+            else:  # LOGICAL match
+                var_name = match.group(6)
+                dims = match.group(7)
+                full_args = f"(LOGICAL, {var_name}, ({dims}))"
 
+            temp_map[var_name] = full_args
+
+    return temp_map
+    
 def update_alloc_lines(lines, temp_map):
     """
     Replace alloc8/alloc4 lines if matching variable is in temp_map.
