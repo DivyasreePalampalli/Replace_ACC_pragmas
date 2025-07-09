@@ -90,7 +90,7 @@ def update_alloc_lines(lines, temp_map):
                 temp_value = f"{temp_map[current_var]}"
 
                 # Replace line with calloc
-                # usage_line = f"{indent}{temp_value} alloc{suffix}\n"
+                # call_line = f"{indent}{temp_value} alloc{suffix}\n"
                 call_line = f"{indent}{temp_value}\n"
 
                 updated_lines.append(call_line)
