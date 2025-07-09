@@ -50,8 +50,13 @@ class AccDataPresentTransformer(PragmaTransformer):
         return f"GPU_DATA_PRESENT_SIMPLE({present_args})\n"
 
 class AccCreateDataTransformer(PragmaTransformer):
-    # Match: !$acc enter data create (something)
-    pattern = re.compile(r"^\s*!\$acc\s+enter\s+data\s+create\s*\(([^)]+)\)", re.IGNORECASE)
+    # Pattern to match CREATE(...) [IF(...)] [ASYNC(...)]
+    pattern = re.compile(
+        r"^\s*!\$acc\s+enter\s+data\s+create\s*\(([^)]+)\)"
+        r"(?:\s+if\s*\(([^)]+)\))?"
+        r"(?:\s+async\s*\(([^)]+)\))?",
+        re.IGNORECASE
+    )
 
     def match(self, line):
         return bool(self.pattern.match(line))
@@ -62,4 +67,14 @@ class AccCreateDataTransformer(PragmaTransformer):
             return line
 
         args = match.group(1).strip()
-        return f"GPU_DATA_ALLOC({args})\n"
+        condition = match.group(2).strip() if match.group(2) else None
+        async_clause = match.group(3).strip() if match.group(3) else None
+
+        if condition and async_clause:
+            return f"GPU_DATA_ALLOC_IF_ASYNC({condition}, {async_clause}, {args})\n"
+        elif condition:
+            return f"GPU_DATA_ALLOC_IF({condition}, {args})\n"
+        elif async_clause:
+            return f"GPU_DATA_ALLOC_ASYNC({async_clause}, {args})\n"
+        else:
+            return f"GPU_DATA_ALLOC({args})\n"
