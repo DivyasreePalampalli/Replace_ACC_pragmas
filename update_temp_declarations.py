@@ -10,12 +10,13 @@ def find_files(root_dir):
             if filename.lower().endswith(".f90"):
                 yield os.path.join(dirpath, filename)
 
-
-def extract_temp_declarations(lines):
+def update_temp_lines(lines):
     """
     Extracts variable names and alloc-style argument strings from temp(...) calls.
     Returns a dictionary: {variable_name: alloc_arg_string}
     """
+    updated_lines = []
+    
     pattern = re.compile(
         r'temp\s*\(\s*(REAL|INTEGER)\s*\(\s*KIND\s*=\s*(\w+)\s*\)\s*,\s*(\w+)\s*,\s*\((.*?)\)\s*\)'  # REAL/INTEGER with KIND
         r'|temp\s*\(\s*(REAL|INTEGER)\s*,\s*(\w+)\s*,\s*\((.*?)\)\s*\)'                              # REAL/INTEGER without KIND
@@ -34,25 +35,27 @@ def extract_temp_declarations(lines):
                 var_name = match.group(3)
                 dims = match.group(4)
                 dim_list = extract_dims(dims)
-                alloc_args = f"({type_base} (KIND={kind}), {var_name}, {', '.join(dim_list)})"
-                temp_map[var_name] = alloc_args
+                line = f"{type_base} (KIND={kind}), pointer :: {var_name}({','.join(dim_list)})\n"
+                # line = alloc_args
 
             elif match.group(5):  # REAL/INTEGER without KIND
                 type_base = match.group(5).upper()
                 var_name = match.group(6)
                 dims = match.group(7)
                 dim_list = extract_dims(dims)
-                alloc_args = f"({type_base}, {var_name}, {', '.join(dim_list)})"
-                temp_map[var_name] = alloc_args
+                line = f"{type_base}, pointer :: {var_name}({','.join(dim_list)})\n"
+                # temp_map[var_name] = alloc_args
 
             elif match.group(8):  # LOGICAL
                 var_name = match.group(9)
                 dims = match.group(10)
                 dim_list = extract_dims(dims)
-                alloc_args = f"(LOGICAL, {var_name}, {', '.join(dim_list)})"
-                temp_map[var_name] = alloc_args
+                line = f"{type_base}, pointer :: {var_name}({','.join(dim_list)})"
+                # temp_map[var_name] = alloc_args
+        updated_lines.append(line)
 
-    return temp_map
+    return updated_lines
+
 
 
 def extract_dims(dim_str):
@@ -71,47 +74,9 @@ def extract_dims(dim_str):
         else:
             clean_dims.append(d)
 
-    if add_padding:
-        clean_dims += ['0', '0', '0']
+    clean_dims_with_colon = [":" for _ in range(len(clean_dims))]
 
-    return clean_dims
-
-def update_alloc_lines(lines, temp_map):
-    """
-    Replace alloc8/alloc4 lines if matching variable is in temp_map.
-    """
-    updated_lines = []
-    inside_if_block = False
-    current_var = None
-
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-
-        # Detect the start of KIND-based block
-        kind_match = re.match(r'IF\s*\(\s*KIND\s*\(\s*(\w+)\s*\)\s*==\s*(\d+)\s*\)\s*THEN', stripped, re.IGNORECASE)
-        elseif_match = re.match(r'ELSEIF\s*\(\s*KIND\s*\(\s*(\w+)\s*\)\s*==\s*(\d+)\s*\)\s*THEN', stripped, re.IGNORECASE)
-
-        if kind_match or elseif_match:
-            current_var = kind_match.group(1) if kind_match else elseif_match.group(1)
-            inside_if_block = True
-            updated_lines.append(line)
-            continue
-
-        if inside_if_block and current_var and current_var in temp_map:
-            alloc_match = re.match(r'\s*(alloc(8|4))\s*\(\s*.*?\)', line, re.IGNORECASE)
-            if alloc_match:
-                func = alloc_match.group(1)
-                # Replace with the full temp-style declaration
-                new_line = re.sub(r'\(.*\)', f'{temp_map[current_var]}', line)
-                updated_lines.append(new_line)
-                continue
-
-        if stripped.upper() == 'ENDIF':
-            inside_if_block = False
-            current_var = None
-
-        updated_lines.append(line)
-    return updated_lines
+    return clean_dims_with_colon
 
 def detect_encoding(filepath):
     with open(filepath, 'rb') as f:
@@ -124,8 +89,7 @@ def process_file(file_path):
     with open(file_path, "r", encoding=encoding, errors="replace") as f:
         lines = f.readlines()
 
-    temp_map = extract_temp_declarations(lines)
-    updated_lines = update_alloc_lines(lines, temp_map)
+    updated_lines = update_temp_lines(lines)
 
     if lines != updated_lines:
         with open(file_path, 'w', encoding='utf-8') as f:
@@ -136,21 +100,20 @@ def main():
 
     '''
     Description:
-        This script scans .f90/.F90 files to update alloc8(var) and alloc4(var) calls by replacing them with the full argument list from matching temp(REAL(KIND=JPRB), var, (...)) declarations.
+        This script scans .f90/.F90 files to update temp declaration lines
 
     Purpose:
         In large Fortran codebases, allocation blocks often repeat argument declarations already defined in temp(...) helper macros. This tool:
 
         Finds all .f90 / .F90 files in a specified directory (recursively).
         Identifies temp(REAL(KIND=JPRB), VAR, (DIM)) declarations.
-        Locates matching alloc8(VAR) / alloc4(VAR) blocks.
-        Replaces them with the full argument list from the original temp(...) call.
+        Replaces them with temp (TYPE, NAME, (DIM1, DIM2, DIM3)) -> type, pointer :: NAME(:,:,:)
 
     Usage:
-        python3 update_alloc_calls.py [directory] 
+        python3 update_temp_declarations.py [directory] 
         
     Example:
-        python3 update_alloc_calls.py ./src
+        python3 update_temp_declarations ./src
     '''
 
 
