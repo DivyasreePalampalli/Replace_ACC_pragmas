@@ -35,7 +35,9 @@ def update_temp_lines(lines):
                 var_name = match.group(3)
                 dims = match.group(4)
                 dim_list = extract_dims(dims)
-                line = f"{type_base} (KIND={kind}), pointer :: {var_name}({','.join(dim_list)})\n"
+                dims_with_colon = [":" for _ in range(len(dim_list))]
+                temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list});"
+                line = f"{type_base} (KIND={kind}), pointer :: {var_name}({','.join(dims_with_colon)})\n"
                 # line = alloc_args
 
             elif match.group(5):  # REAL/INTEGER without KIND
@@ -43,19 +45,63 @@ def update_temp_lines(lines):
                 var_name = match.group(6)
                 dims = match.group(7)
                 dim_list = extract_dims(dims)
-                line = f"{type_base}, pointer :: {var_name}({','.join(dim_list)})\n"
-                # temp_map[var_name] = alloc_args
+                dims_with_colon = [":" for _ in range(len(dim_list))]
+                line = f"{type_base}, pointer :: {var_name}({','.join(dims_with_colon)})\n"
+                temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list});"
 
             elif match.group(8):  # LOGICAL
                 var_name = match.group(9)
                 dims = match.group(10)
                 dim_list = extract_dims(dims)
-                line = f"{type_base}, pointer :: {var_name}({','.join(dim_list)})"
-                # temp_map[var_name] = alloc_args
+                dims_with_colon = [":" for _ in range(len(dim_list))]
+                line = f"{type_base}, pointer :: {var_name}({','.join(dims_with_colon)})"
+                temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list});"
         updated_lines.append(line)
 
-    return updated_lines
+    return updated_lines, temp_map
 
+def update_alloc_lines(lines, temp_map):
+    """
+    Replace alloc8/alloc4 lines if matching variable is in temp_map.
+    """
+    updated_lines = []
+    inside_if_block = False
+    current_var = None
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+
+        # Detect the start of KIND-based block
+        kind_match = re.match(r'IF\s*\(\s*KIND\s*\(\s*(\w+)\s*\)\s*==\s*(\d+)\s*\)\s*THEN', stripped, re.IGNORECASE)
+        elseif_match = re.match(r'ELSEIF\s*\(\s*KIND\s*\(\s*(\w+)\s*\)\s*==\s*(\d+)\s*\)\s*THEN', stripped, re.IGNORECASE)
+
+        if kind_match or elseif_match:
+            current_var = kind_match.group(1) if kind_match else elseif_match.group(1)
+            inside_if_block = True
+            updated_lines.append(line)
+            continue
+
+        if inside_if_block and current_var and current_var in temp_map:
+            alloc_match = re.match(r'(\s*)(alloc(8|4))\s*\(\s*.*?\)', line, re.IGNORECASE)
+            if alloc_match:
+                indent = alloc_match.group(1)               # Leading whitespace
+                alloc_type = alloc_match.group(2).lower()   # alloc4 or alloc8
+                suffix = alloc_type[-1]                     # '4' or '8'
+                temp_value = f"{temp_map[current_var]}"
+
+                # Replace line with calloc
+                # usage_line = f"{indent}{temp_value} alloc{suffix}\n"
+                call_line = f"{indent}{temp_value}\n"
+
+                updated_lines.append(call_line)
+                continue
+
+        if stripped.upper() == 'ENDIF':
+            inside_if_block = False
+            current_var = None
+
+        updated_lines.append(line)
+    return updated_lines
 
 
 def extract_dims(dim_str):
@@ -74,9 +120,9 @@ def extract_dims(dim_str):
         else:
             clean_dims.append(d)
 
-    clean_dims_with_colon = [":" for _ in range(len(clean_dims))]
+    # clean_dims_with_colon = [":" for _ in range(len(clean_dims))]
 
-    return clean_dims_with_colon
+    return clean_dims
 
 def detect_encoding(filepath):
     with open(filepath, 'rb') as f:
@@ -89,7 +135,8 @@ def process_file(file_path):
     with open(file_path, "r", encoding=encoding, errors="replace") as f:
         lines = f.readlines()
 
-    updated_lines = update_temp_lines(lines)
+    updated_lines, temp_map = update_temp_lines(lines)
+    updated_lines = update_alloc_lines(updated_lines, temp_map)
 
     if lines != updated_lines:
         with open(file_path, 'w', encoding='utf-8') as f:
