@@ -37,7 +37,7 @@ def update_temp_lines(lines):
                 dim_list, extra_dims, count = extract_dims(dims)
                 dims_with_colon = [":" for _ in range(count)]
                 if extra_dims:
-                    temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list}); {extra_dims} => NAME\n"
+                    temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list}); {var_name}{extra_dims} => {var_name}\n"
                 else:
                     temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list});"
                 line = f"{type_base} (KIND={kind}), pointer :: {var_name}({','.join(dims_with_colon)})\n"
@@ -50,7 +50,7 @@ def update_temp_lines(lines):
                 dim_list, extra_dims, count = extract_dims(dims)
                 dims_with_colon = [":" for _ in range(count)]
                 if extra_dims:
-                    temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list}); {extra_dims} => NAME\n"
+                    temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list}); {var_name}{extra_dims} => {var_name}\n"
                 else:
                     temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list});"
                 temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list});"
@@ -62,7 +62,7 @@ def update_temp_lines(lines):
                 dims_with_colon = [":" for _ in range(count)]
                 line = f"{type_base}, pointer :: {var_name}({','.join(dims_with_colon)})"
                 if extra_dims:
-                    temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list}); {extra_dims} => NAME\n"
+                    temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list}); {var_name}{extra_dims} => {var_name}\n"
                 else:
                     temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list});"
         updated_lines.append(line)
@@ -146,13 +146,24 @@ def extract_dims(dim_str):
             f_dims += f", {cal_dims[i]}"
             extra_dims += f", {extract_dims[i]}"
         f_dims = f"[{f_dims[2:]}]"
-        extra_dims = f"NAME({extra_dims[2:]})"
+        extra_dims = f"({extra_dims[2:]})"
         return f_dims, extra_dims, count
     else:
         for i in raw_dims:
             f_dims += f", {i}"
         f_dims = f"[{f_dims[2:]}]"
         return f_dims, None, count
+
+
+def add_after_impact_none(lines):
+    NEW_LINE = "PLACE_HOLDER_FOR_NEW_LINE\n"  # TO BE UPDATED
+    updated_lines = []
+    for line in lines:
+        updated_lines.append(line)
+        if line.strip() == "IMPLICIT NONE":
+            updated_lines.append(NEW_LINE)
+    return updated_lines
+
 
 def detect_encoding(filepath):
     with open(filepath, 'rb') as f:
@@ -169,6 +180,7 @@ def process_file(file_path):
     updated_lines = update_alloc_lines(updated_lines, temp_map)
 
     if lines != updated_lines:
+        updated_lines = add_after_impact_none(updated_lines)
         with open(file_path, 'w', encoding='utf-8') as f:
             f.writelines(updated_lines)
         print(f"Updated: {file_path}")

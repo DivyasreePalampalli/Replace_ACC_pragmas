@@ -16,6 +16,8 @@ def join_multiline_pragma(lines):
 
     for line in lines:
         stripped = line.strip()
+        if line.startswith("!!"):
+            yield line
 
         if stripped.startswith("!$ACC"):
             # Capture and preserve the leading whitespace of the first line
