@@ -50,12 +50,12 @@ class AccDataPresentTransformer(PragmaTransformer):
         return f"GPU_DATA_PRESENT_SIMPLE({present_args})\n"
 
 class AccCreateDataTransformer(PragmaTransformer):
-    # Pattern to match CREATE(...) [IF(...)] [ASYNC(...)]
+    # Match: !$acc enter data create(...) [if(...)] [async(...)]
     pattern = re.compile(
-        r"^\s*!\$acc\s+enter\s+data\s+create\s*\(([^)]+)\)"
-        r"(?:\s+if\s*\(([^)]+)\))?"
-        r"(?:\s+async\s*\(([^)]+)\))?",
-        re.IGNORECASE
+        r"^\s*!\$acc\s+enter\s+data\s+create\s*\(\s*([^)]+?)\s*\)\s*"
+        r"(?:if\s*\(\s*([^)]+?)\s*\))?\s*"
+        r"(?:async\s*\(\s*([^)]+?)\s*\))?",
+        re.IGNORECASE,
     )
 
     def match(self, line):
@@ -78,3 +78,50 @@ class AccCreateDataTransformer(PragmaTransformer):
             return f"GPU_DATA_ALLOC_ASYNC({async_clause}, {args})\n"
         else:
             return f"GPU_DATA_ALLOC({args})\n"
+
+
+class AccDataHostTransformer(PragmaTransformer):
+    pattern = re.compile(
+        r"""^\s*!\$ACC\s+
+            (?P<type>UPDATE|DATA)\s+
+            HOST\s*\((?P<vars>[^)]+)\)                        # host variables
+            (?:\s+WAIT\s*\((?P<wait>[^)]+)\))?                # optional WAIT clause
+            (?:\s+ASYNC\s*\((?P<async>[^)]+)\))?              # optional ASYNC clause
+            (?:\s+IF\s*\((?P<if>[^)]+)\))?                    # optional IF clause
+        """, re.IGNORECASE | re.VERBOSE)
+
+    def match(self, line):
+        return bool(self.pattern.match(line))
+
+    def transform(self, line):
+        match = self.pattern.match(line)
+        if not match:
+            return line  # no match, unchanged
+
+        vars_ = match.group("vars").strip()
+        wait = match.group("wait")
+        async_ = match.group("async")
+        condition = match.group("if")
+        op_type = match.group("type").upper()
+
+        var_list = [v.strip() for v in vars_.split(",")]
+        var_args = ", ".join(var_list)
+
+        # Handle !$ACC DATA HOST(...) IF(...)
+        if op_type == "DATA":
+            if condition:
+                return f"GPU_DATA_HOST_IF({condition}, {var_args})\n"
+            else:
+                # Optionally implement GPU_DATA_HOST_SIMPLE if needed
+                return f"GPU_DATA_HOST_SIMPLE({var_args})\n"
+
+        # UPDATE case
+        if condition and async_:
+            return f"GPU_DATA_UPDATE_HOST_ASYNC_IF({condition}, {async_.strip()}, {var_args})\n"
+        if condition and wait:
+            return f"GPU_DATA_UPDATE_HOST_WAIT_IF({condition}, {wait.strip()}, {var_args})\n"
+        if condition:
+            return f"GPU_DATA_UPDATE_HOST_IF({condition}, {var_args})\n"
+
+        # Default fallback
+        return f"GPU_DATA_UPDATE_HOST({var_args})\n"
