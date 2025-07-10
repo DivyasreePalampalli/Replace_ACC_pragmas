@@ -34,9 +34,12 @@ def update_temp_lines(lines):
                 kind = match.group(2).upper()
                 var_name = match.group(3)
                 dims = match.group(4)
-                dim_list, count = extract_dims(dims)
+                dim_list, extra_dims, count = extract_dims(dims)
                 dims_with_colon = [":" for _ in range(count)]
-                temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list});"
+                if extra_dims:
+                    temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list}); {extra_dims} => NAME\n"
+                else:
+                    temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list});"
                 line = f"{type_base} (KIND={kind}), pointer :: {var_name}({','.join(dims_with_colon)})\n"
                 # line = alloc_args
 
@@ -44,18 +47,24 @@ def update_temp_lines(lines):
                 type_base = match.group(5).upper()
                 var_name = match.group(6)
                 dims = match.group(7)
-                dim_list, count = extract_dims(dims)
+                dim_list, extra_dims, count = extract_dims(dims)
                 dims_with_colon = [":" for _ in range(count)]
-                line = f"{type_base}, pointer :: {var_name}({','.join(dims_with_colon)})\n"
+                if extra_dims:
+                    temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list}); {extra_dims} => NAME\n"
+                else:
+                    temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list});"
                 temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list});"
 
             elif match.group(8):  # LOGICAL
                 var_name = match.group(9)
                 dims = match.group(10)
-                dim_list, count = extract_dims(dims)
+                dim_list, extra_dims, count = extract_dims(dims)
                 dims_with_colon = [":" for _ in range(count)]
                 line = f"{type_base}, pointer :: {var_name}({','.join(dims_with_colon)})"
-                temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list});"
+                if extra_dims:
+                    temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list}); {extra_dims} => NAME\n"
+                else:
+                    temp_map[var_name] = f"call c_f_pointer(cPtr, {var_name}, {dim_list});"
         updated_lines.append(line)
 
     return updated_lines, temp_map
@@ -109,25 +118,41 @@ def extract_dims(dim_str):
     Process dimension string: strips spaces, removes `0:` ranges to just upper bound, and adds (0, 0, 0) padding if needed.
     """
     raw_dims = [d.strip() for d in dim_str.split(',')]
-    clean_dims = []
-    add_padding = False
+    has_colon = False
+
+    count = len(raw_dims)
+    cal_dims = []
+    extract_dims = []
+
+    f_dims = ""
+    extra_dims = ""
 
     for d in raw_dims:
         if ':' in d:
-            parts = d.split(':')
-            clean_dims.append(parts[-1].strip())  # Keep upper bound only
-            add_padding = True
-        else:
-            clean_dims.append(d)
+            has_colon = True
 
-    # clean_dims_with_colon = [":" for _ in range(len(clean_dims))]
-    count = len(clean_dims)
-    f_dims = ""
-    for i in clean_dims:
-        f_dims += f", {i}"
-    f_dims = f"[{f_dims[2:]}]"
-
-    return f_dims, count
+    if has_colon:
+        for d in raw_dims:
+            if ':' in d:
+                var = d.split(':')[-1]
+                cal_dims.append(f"{var}+1")
+                extract_dims.append(d)
+            else:
+                cal_dims.append(d)
+                extract_dims.append(f"1:{d}")
+        f_dims1 = ""
+        f_dims2 = ""
+        for i in range(count):
+            f_dims += f", {cal_dims[i]}"
+            extra_dims += f", {extract_dims[i]}"
+        f_dims = f"[{f_dims[2:]}]"
+        extra_dims = f"NAME({extra_dims[2:]})"
+        return f_dims, extra_dims, count
+    else:
+        for i in raw_dims:
+            f_dims += f", {i}"
+        f_dims = f"[{f_dims[2:]}]"
+        return f_dims, None, count
 
 def detect_encoding(filepath):
     with open(filepath, 'rb') as f:
